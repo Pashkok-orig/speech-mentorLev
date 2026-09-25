@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="Speech Mentor — персональный тренер публичных выступлений: запись, транскрипция, анализ слов-паразитов, темпа и пауз с решениями.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Speech Mentor">
+<meta name="theme-color" content="#0B0B0D">
+<title>Speech Mentor — тренер публичных выступлений</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;800&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0B0D; --surface:#141419; --surface2:#1B1B22; --line:#26262E;
+    --text:#F4F2ED; --muted:#8E8C96; --accent:#FFB13D; --accent-dim:rgba(255,177,61,.12);
+    --warn:#FF6B57; --ok:#5FD68A; --radius:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Golos Text',-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; overscroll-behavior:none;
+  }
+  button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  #app{max-width:520px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column}
+
+  header{
+    padding:calc(env(safe-area-inset-top) + 18px) 20px 10px;
+    display:flex;align-items:baseline;justify-content:space-between;
+  }
+  .logo{font-family:'Unbounded';font-size:15px;font-weight:700;letter-spacing:.14em}
+  .logo em{font-style:normal;color:var(--accent)}
+  .tagline{font-size:11px;color:var(--muted);letter-spacing:.04em;opacity:.85}
+  .tagline b{font-weight:600;color:#A9A7B1}
+
+  main{flex:1;overflow:hidden;position:relative}
+  .view{display:none;height:100%;overflow-y:auto;padding:6px 20px 24px;-webkit-overflow-scrolling:touch}
+  .view.active{display:block}
+  .h2{font-family:'Unbounded';font-size:13px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:14px 2px 12px}
+
+  /* Рекордер */
+  .rec-stage{display:flex;flex-direction:column;align-items:center;padding:16px 0 6px}
+  .rec-status{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;height:20px;margin-bottom:18px}
+  .rec-status .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1.2s ease infinite}
+  .rec-status .dot.on{background:var(--warn)}
+  @keyframes blink{50%{opacity:.25}}
+  .rec-wrap{position:relative;width:238px;height:238px;display:grid;place-items:center}
+  .ring{position:absolute;inset:0;transform:rotate(-90deg);pointer-events:none}
+  .ring circle{fill:none;stroke-width:5;stroke-linecap:round}
+  .ring .bgc{stroke:var(--line)}
+  .ring .fgc{stroke:var(--accent);stroke-dasharray:704;stroke-dashoffset:704}
+  .rec-btn{
+    position:relative;z-index:2;
+    width:186px;height:186px;border-radius:50%;
+    background:var(--surface);border:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    transition:transform .08s ease;
+  }
+  .rec-btn:active{transform:scale(.97)}
+  .rec-btn.recording{border-color:rgba(255,177,61,.45);background:#191410}
+  .rec-btn svg{width:52px;height:52px;stroke:var(--accent);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .rec-btn .lbl{font-size:11px;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;pointer-events:none}
+  .rec-btn .timer{font-family:'Unbounded';font-size:27px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);display:none;pointer-events:none}
+  .rec-btn.recording .lbl{display:none}
+  .rec-btn.recording .timer{display:block}
+  .rec-btn .ic-stop{display:none;width:40px;height:40px}
+  .rec-btn.recording .ic-mic{display:none}
+  .rec-btn.recording .ic-stop{display:block;stroke:var(--warn)}
+  .rec-btn .ic-stop rect{fill:var(--warn);stroke:none}
+  .rec-hint{font-size:12px;color:var(--muted);margin-top:16px;text-align:center;line-height:1.5;max-width:290px}
+
+  .live{margin-top:20px;display:none}
+  .live.on{display:block}
+  .live-stats{display:flex;gap:8px;margin-bottom:10px}
+  .lstat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+  .lstat b{display:block;font-family:'Unbounded';font-size:17px;font-weight:500;color:var(--accent)}
+  .lstat span{font-size:10.5px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+  .transcript{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;max-height:200px;overflow-y:auto;font-size:15px;line-height:1.65;color:var(--text);
+  }
+  .transcript .interim{color:var(--muted)}
+  .transcript .ph{color:var(--muted);font-style:italic}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+
+  /* Результат */
+  .res-head{display:flex;align-items:center;justify-content:space-between;margin:8px 2px 14px}
+  .res-head .h2{margin:0}
+  .pill{font-size:11px;color:var(--ok);background:rgba(95,214,138,.1);border:1px solid rgba(95,214,138,.25);padding:5px 10px;border-radius:99px}
+  .deltas{display:none;gap:8px;flex-wrap:wrap;margin:-4px 2px 12px}
+  .delta{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:6px 11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .delta b{color:var(--text);font-weight:600}
+  .delta.up{color:var(--ok);border-color:rgba(95,214,138,.35)}
+  .delta.up b{color:var(--ok)}
+  .delta.down{color:var(--warn);border-color:rgba(255,107,87,.35)}
+  .delta.down b{color:var(--warn)}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .metric{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .metric b{display:block;font-family:'Unbounded';font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;margin-bottom:4px}
+  .metric span{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+  .metric.bad b{color:var(--warn)}
+  .section-label{font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin:20px 2px 10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 13px;font-size:13px}
+  .chip b{color:var(--warn);font-weight:600}
+  .chip.none{color:var(--muted)}
+  .ptimeline{height:34px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;position:relative;overflow:hidden}
+  .ptimeline .seg{position:absolute;top:0;bottom:0;background:rgba(255,107,87,.55);border-left:1px solid rgba(255,107,87,.9);border-right:1px solid rgba(255,107,87,.9)}
+  .ptimeline-legend{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:7px}
+  .ptimeline-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;background:rgba(255,107,87,.55);margin-right:5px;vertical-align:-1px}
+
+  /* Проблемы и решения */
+  .tip{padding:14px 2px 16px;border-bottom:1px solid var(--line)}
+  .tip:last-child{border-bottom:none}
+  .tip-head{display:flex;gap:11px;align-items:flex-start}
+  .tip .n{font-family:'Unbounded';font-size:12px;color:var(--accent);padding-top:2px;min-width:24px;flex-shrink:0}
+  .tip .prob{font-size:14px;font-weight:600;line-height:1.5}
+  .tip .prob b{color:var(--accent);font-weight:600}
+  .tip.good .n{color:var(--ok)}
+  .tip-fix{margin:10px 0 0 35px;background:rgba(255,177,61,.07);border:1px solid rgba(255,177,61,.22);border-radius:12px;padding:10px 13px}
+  .tip.good .tip-fix{background:rgba(95,214,138,.06);border-color:rgba(95,214,138,.22)}
+  .tip-fix .fl{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+  .tip.good .tip-fix .fl{color:var(--ok)}
+  .tip-fix p{font-size:13.5px;line-height:1.55;font-weight:400}
+
+  .player{display:flex;align-items:center;gap:14px}
+  .play-btn{width:52px;height:52px;border-radius:50%;background:var(--accent);display:grid;place-items:center;flex-shrink:0}
+  .play-btn svg{width:22px;height:22px;fill:#141419}
+  .pbar{flex:1;height:6px;background:var(--surface2);border-radius:99px;overflow:hidden}
+  .pbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px}
+  .ptime{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+  .actions{display:flex;gap:10px;margin:22px 0 8px}
+  .btn{
+    flex:1;min-height:54px;border-radius:16px;font-size:15px;font-weight:600;letter-spacing:.02em;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .btn-primary{background:var(--accent);color:#141419}
+  .btn-primary:active{transform:scale(.98)}
+  .btn-ghost{background:none;border:1px solid var(--line);color:var(--text)}
+  .btn-ghost.danger{color:var(--warn);border-color:rgba(255,107,87,.35)}
+
+  /* История */
+  .sum-line{font-size:13px;color:var(--muted);margin:6px 2px 0}
+  .privacy-note{font-size:11px;color:var(--muted);opacity:.75;margin:2px 2px 14px}
+  .h-item{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;margin-bottom:10px}
+  .h-top{display:flex;justify-content:space-between;align-items:baseline}
+  .h-date{font-weight:600;font-size:15px}
+  .h-dur{font-family:'Unbounded';font-size:13px;color:var(--accent)}
+  .h-rows{display:flex;gap:6px;margin-top:12px}
+  .h-cell{flex:1;text-align:center}
+  .h-cell b{display:block;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .h-cell span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .h-cell b.warn{color:var(--warn)}
+  .h-mini{height:5px;background:var(--surface2);border-radius:99px;position:relative;overflow:hidden;margin-top:12px}
+  .h-mini .seg{position:absolute;top:0;bottom:0;background:rgba(255,107,87,.5)}
+  .h-more{display:none;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+  .h-item.open .h-more{display:block}
+  .h-text{font-size:13.5px;line-height:1.6;color:#C9C7CF;max-height:170px;overflow-y:auto}
+  .h-del{margin-top:12px;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:9px 14px}
+  .h-del.armed{color:var(--warn);border-color:var(--warn)}
+  .chev{transition:transform .2s}
+  .h-item.open .chev{transform:rotate(180deg)}
+  .empty{border:1.5px dashed var(--line);border-radius:var(--radius);padding:36px 22px;text-align:center;color:var(--muted);font-size:14px;line-height:1.6;margin-top:18px}
+  .empty svg{width:38px;height:38px;stroke:var(--muted);stroke-width:1.5;fill:none;margin-bottom:12px;stroke-linecap:round;stroke-linejoin:round}
+
+  /* Прогресс */
+  .seg-control{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:16px}
+  .seg-control button{flex:1;min-height:42px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted)}
+  .seg-control button.on{background:var(--surface2);color:var(--text)}
+  #chartBox{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 8px 6px}
+  #chart{width:100%;height:230px;display:block}
+  .week-row{display:flex;align-items:center;padding:13px 2px;border-bottom:1px solid var(--line);gap:10px}
+  .week-row:last-child{border:none}
+  .week-name{flex:1.2;font-size:13.5px;font-weight:600}
+  .week-name span{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:2px}
+  .week-m{flex:.8;text-align:center}
+  .week-m b{font-size:14px;font-variant-numeric:tabular-nums;font-weight:600;display:block}
+  .week-m span{font-size:10px;color:var(--muted);text-transform:uppercase}
+
+  nav{
+    display:flex;border-top:1px solid var(--line);background:rgba(11,11,13,.92);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav button{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted)}
+  nav button svg{width:24px;height:24px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  nav button span{font-size:10px;letter-spacing:.06em}
+  nav button.on{color:var(--accent)}
+
+  #toast{
+    position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%) translateY(16px);
+    background:#22222A;border:1px solid var(--line);color:var(--text);font-size:13.5px;
+    padding:11px 18px;border-radius:99px;opacity:0;pointer-events:none;transition:all .25s ease;max-width:86vw;text-align:center;z-index:50;
+  }
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .notice{display:none;background:rgba(255,177,61,.08);border:1px solid rgba(255,177,61,.3);border-radius:14px;padding:11px 14px;font-size:12.5px;line-height:1.5;color:#E8CFA4;margin-top:16px}
+  .notice.on{display:block}
+</style>
+</head>
+<body>
+
+<!-- Страховка: любая ошибка JS видна красной плашкой сверху -->
+<script>
+(function(){
+  function banner(msg){
+    var b = document.getElementById('fatalBar');
+    if (!b){
+      b = document.createElement('div');
+      b.id = 'fatalBar';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#4a1512;color:#ffc9c4;'+
+        'font:12px/1.5 monospace;padding:10px 14px;white-space:pre-wrap;word-break:break-word';
+      document.body.appendChild(b);
+    }
+    b.textContent += (b.textContent ? '\n' : '') + msg;
+  }
+  window.addEventListener('error', function(e){ banner('Ошибка: ' + e.message + ' (строка ' + e.lineno + ')'); });
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e.reason; banner('Promise: ' + (r && r.message ? r.message : r));
+  });
+})();
+</script>
+
+<div id="app">
+  <header>
+    <div class="logo">SPEECH<em>·</em>MENTOR</div>
+    <div class="tagline">By <b>Pashkok</b> · v6</div>
+  </header>
+
+  <main>
+    <!-- ЭКРАН ЗАПИСИ -->
+    <section class="view active" id="view-record">
+      <div class="rec-stage">
+        <div class="rec-status" id="recStatus">Готов записать твою речь</div>
+        <div class="rec-wrap">
+          <svg class="ring" viewBox="0 0 238 238">
+            <circle class="bgc" cx="119" cy="119" r="112"></circle>
+            <circle class="fgc" id="ringFg" cx="119" cy="119" r="112"></circle>
+          </svg>
+          <button class="rec-btn" id="recBtn" aria-label="Начать запись">
+            <svg class="ic-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></svg>
+            <svg class="ic-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>
+            <span class="lbl">Начать</span>
+            <span class="timer" id="timer">00:00</span>
+          </button>
+        </div>
+        <p class="rec-hint">Говори как на настоящем выступлении. Слова-паразиты, темп и паузы разберу сразу после остановки — с готовыми упражнениями.</p>
+        <div class="notice" id="srNotice"></div>
+      </div>
+
+      <div class="live" id="liveBlock">
+        <div class="live-stats">
+          <div class="lstat"><b id="lvWords">0</b><span>слов</span></div>
+          <div class="lstat"><b id="lvFillers">0</b><span>паразитов</span></div>
+          <div class="lstat"><b id="lvWpm">—</b><span>слов/мин</span></div>
+        </div>
+        <div class="transcript" id="transcript"><span class="ph">Здесь появится текст твоей речи…</span></div>
+      </div>
+    </section>
+
+    <!-- РЕЗУЛЬТАТ -->
+    <section class="view" id="view-result">
+      <div class="res-head">
+        <div class="h2">Разбор речи</div>
+        <div class="pill">в истории</div>
+      </div>
+      <div class="deltas" id="deltas"></div>
+      <div class="metrics">
+        <div class="metric"><b id="mDur">—</b><span>длительность</span></div>
+        <div class="metric" id="mWpmBox"><b id="mWpm">—</b><span>слов в минуту</span></div>
+        <div class="metric" id="mFillBox"><b id="mFill">—</b><span>слов-паразитов</span></div>
+        <div class="metric" id="mPauseBox"><b id="mPause">—</b><span>пауз · <span id="mPauseMs"></span></span></div>
+      </div>
+
+      <div class="section-label">Слова-паразиты</div>
+      <div class="chips" id="fillerChips"></div>
+
+      <div class="section-label">Карта пауз</div>
+      <div class="ptimeline" id="pTimeline"></div>
+      <div class="ptimeline-legend"><span><i></i>паузы ≥ 0,4 с</span><span id="pRatio"></span></div>
+
+      <div class="section-label">Проблемы и решения</div>
+      <div class="card" id="tipsList"></div>
+
+      <div class="section-label">Запись</div>
+      <div class="card player">
+        <button class="play-btn" id="playBtn" aria-label="Прослушать">
+          <svg viewBox="0 0 24 24" id="playIc"><path d="M8 5.5v13l11-6.5z"/></svg>
+        </button>
+        <div class="pbar"><i id="pbarFill"></i></div>
+        <div class="ptime" id="pTime">0:00</div>
+      </div>
+      <audio id="player" preload="metadata"></audio>
+
+      <div class="actions">
+        <button class="btn btn-ghost danger" id="btnDiscard">Удалить</button>
+        <button class="btn btn-primary" id="btnAgain">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 1 1 2.5 5.8M4 20v-5h5"/></svg>
+          Новая запись
+        </button>
+      </div>
+      <div style="height:8px"></div>
+    </section>
+
+    <!-- ИСТОРИЯ -->
+    <section class="view" id="view-history">
+      <div class="h2">История</div>
+      <div class="sum-line" id="histSummary"></div>
+      <div class="privacy-note">Записи хранятся только на этом устройстве — у каждого пользователя свои.</div>
+      <div id="histList"></div>
+    </section>
+
+    <!-- ПРОГРЕСС -->
+    <section class="view" id="view-progress">
+      <div class="h2">Прогресс</div>
+      <div class="seg-control">
+        <button class="on" data-metric="wpm">Темп речи</button>
+        <button data-metric="fill100">Паразиты / 100 слов</button>
+      </div>
+      <div id="chartBox"><canvas id="chart"></canvas></div>
+      <div class="section-label">По неделям</div>
+      <div class="card" id="weeksList" style="padding:4px 16px"></div>
+      <div style="height:8px"></div>
+    </section>
+  </main>
+
+  <nav>
+    <button class="on" data-view="view-record" aria-label="Запись">
+      <svg viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></svg>
+      <span>Запись</span>
+    </button>
+    <button data-view="view-history" aria-label="История">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+      <span>История</span>
+    </button>
+    <button data-view="view-progress" aria-label="Прогресс">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5h16M4.5 15.5l4.5-5.5 3.5 3.5 6-8"/></svg>
+      <span>Прогресс</span>
+    </button>
+  </nav>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ═══════════ PWA: иконки + manifest генерируются на canvas ═══════════ */
+(function setupPWA(){
+  function makeIcon(size){
+    var c = document.createElement('canvas'); c.width = c.height = size;
+    var x = c.getContext('2d');
+    x.fillStyle = '#0B0B0D'; x.fillRect(0,0,size,size);
+    var hs = [.32,.58,.92,.6,.34], w = size*.085, gap = size*.055;
+    var total = 5*w + 4*gap, startX = (size-total)/2;
+    x.fillStyle = '#FFB13D';
+    for (var i=0;i<hs.length;i++){
+      var bh = hs[i]*size*.62, bx = startX + i*(w+gap), by = (size-bh)/2, r = w/2;
+      x.beginPath(); x.moveTo(bx+r,by);
+      x.arcTo(bx+w,by,bx+w,by+bh,r); x.arcTo(bx+w,by+bh,bx,by+bh,r);
+      x.arcTo(bx,by+bh,bx,by,r); x.arcTo(bx,by,bx+w,by,r); x.fill();
+    }
+    return c.toDataURL('image/png');
+  }
+  var l = document.createElement('link');
+  l.rel = 'apple-touch-icon'; l.sizes = '180x180'; l.href = makeIcon(180);
+  document.head.appendChild(l);
+
+  var baseUrl = location.href.replace(/[^\/]*$/, '');
+  var manifest = {
+    name:'Speech Mentor', short_name:'Speech Mentor',
+    description:'Персональный тренер публичных выступлений',
+    display:'standalone', start_url:location.href, scope:baseUrl,
+    background_color:'#0B0B0D', theme_color:'#0B0B0D',
+    icons:[
+      {src:makeIcon(192), sizes:'192x192', type:'image/png', purpose:'any'},
+      {src:makeIcon(512), sizes:'512x512', type:'image/png', purpose:'any'},
+      {src:makeIcon(512), sizes:'512x512', type:'image/png', purpose:'maskable'}
+    ]
+  };
+  var m = document.createElement('link');
+  m.rel = 'manifest';
+  m.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));
+  document.head.appendChild(m);
+})();
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+
+/* ═══════════ Утилиты ═══════════ */
+function $(s){ return document.querySelector(s); }
+function esc(t){
+  return String(t).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+function fmtClock(ms){
+  var s = Math.floor(ms/1000);
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function fmtDur(ms){
+  var m = Math.floor(ms/60000), s = Math.round(ms%60000/1000);
+  return m ? m + ' мин ' + s + ' с' : s + ' с';
+}
+function fmtDate(ts){ return new Date(ts).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}); }
+var toastT;
+function toast(msg){
+  var el = $('#toast'); el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 2600);
+}
+function showMicProblem(msg){
+  toast(msg);
+  var n = $('#srNotice'); n.textContent = msg; n.classList.add('on');
+}
+
+/* ═══════════ Слова-паразиты ═══════════ */
+var FILL_PHRASES = [[/как\s+бы/g,'как бы'],[/в\s+общем/g,'в общем'],[/в\s+принципе/g,'в принципе']];
+var FILL_SINGLE = ['эм','ээ','эээ','ээээ','мм','ммм','мммм','ну','вот','типа','короче','значит','итак','собственно','прям','вообще','допустим','блин','угу'];
+var FILL_SET = {}; FILL_SINGLE.forEach(function(w){ FILL_SET[w] = true; });
+function countFillers(text){
+  var t = ' ' + String(text).toLowerCase().replace(/ё/g,'е') + ' ';
+  var items = {}, total = 0;
+  FILL_PHRASES.forEach(function(p){
+    var m = t.match(p[0]);
+    if (m){ items[p[1]] = (items[p[1]]||0) + m.length; total += m.length; }
+  });
+  var cleaned = t.replace(/как\s+бы/g,' ').replace(/в\s+общем/g,' ').replace(/в\s+принципе/g,' ');
+  var words = cleaned.match(/[а-яa-z]+/g) || [];
+  words.forEach(function(w){
+    if (FILL_SET[w]){ items[w] = (items[w]||0)+1; total++; }
+  });
+  return { total: total, items: items };
+}
+function countWords(text){ return (String(text).match(/[а-яa-z0-9]+/gi)||[]).length; }
+
+/* ═══════════ Состояние ═══════════ */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var hasSR = !!SR;
+var state = {
+  recording:false, stopping:false, finalized:false, finalT:null,
+  stream:null, mediaRecorder:null, chunks:[], blob:null, blobUrl:null,
+  audioCtx:null, srcNode:null, analyser:null, meterInt:null, timerInt:null,
+  recog:null, parts:[], interim:'', seen:null, sessionKey:0, srFailed:false,
+  startTs:0, durMs:0, silenceStart:null, pauses:[], level:0,
+  wakeLock:null, lastResult:null
+};
+
+/* ═══════════ Доступ к микрофону (с таймаутом и диагностикой) ═══════════ */
+async function getMic(){
+  if (!window.isSecureContext){
+    showMicProblem('Микрофон доступен только по HTTPS или на localhost. Сейчас страница открыта как локальный файл — залей её на GitHub Pages / Vercel.');
+    return false;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    showMicProblem('Этот браузер не поддерживает доступ к микрофону. Открой страницу в современном Safari или Chrome.');
+    return false;
+  }
+  try{
+    var req = navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    var timeout = new Promise(function(_, rej){
+      setTimeout(function(){ rej({name:'Timeout', message:'микрофон не ответил за 10 секунд'}); }, 10000);
+    });
+    state.stream = await Promise.race([req, timeout]);
+    return true;
+  }catch(e){
+    try{
+      navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+        s.getTracks().forEach(function(t){ t.stop(); });
+      }, function(){});
+    }catch(e2){}
+    var nm = e && e.name ? e.name : 'Ошибка';
+    showMicProblem(nm === 'NotAllowedError'
+      ? 'Доступ к микрофону запрещён. Разреши его: значок «АА» слева в адресной строке → Настройки веб-сайта → Микрофон → Разрешить.'
+      : 'Ошибка микрофона: ' + nm + '. ' + (e && e.message ? e.message : ''));
+    return false;
+  }
+}
+
+/* ═══════════ Старт / остановка записи ═══════════ */
+async function startRecording(){
+  if (state.recording) return;
+  var ok = await getMic();
+  if (!ok) return;
+
+  state.recording = true; state.stopping = false; state.finalized = false;
+  state.parts = []; state.interim = ''; state.seen = {}; state.sessionKey++;
+  state.pauses = []; state.silenceStart = null; state.level = 0; state.blob = null; state.srFailed = false;
+  $('#srNotice').classList.remove('on');
+
+  /* Web Audio: ОДИН контекст на всю жизнь страницы, никогда не усыпляется.
+     Себя слышно не будет: выход подключён через усилитель с gain = 0. */
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!state.audioCtx || state.audioCtx.state === 'closed') state.audioCtx = new AC();
+    var ctx = state.audioCtx;
+    if (ctx.state === 'suspended'){ try{ ctx.resume(); }catch(e2){} }
+    var src = ctx.createMediaStreamSource(state.stream);
+    var an = ctx.createAnalyser(); an.fftSize = 2048;
+    src.connect(an);
+    var silent = ctx.createGain(); silent.gain.value = 0;
+    src.connect(silent); silent.connect(ctx.destination);
+    state.srcNode = src; state.analyser = an;
+  }catch(e){ state.analyser = null; state.srcNode = null; }
+
+  var mime = '';
+  if (window.MediaRecorder){
+    var candidates = ['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+    for (var i=0;i<candidates.length;i++){
+      try{ if (MediaRecorder.isTypeSupported(candidates[i])){ mime = candidates[i]; break; } }catch(e){}
+    }
+  }
+  try{
+    state.chunks = [];
+    state.mediaRecorder = mime ? new MediaRecorder(state.stream, {mimeType:mime}) : new MediaRecorder(state.stream);
+    state.mediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) state.chunks.push(e.data); };
+    state.mediaRecorder.onstop = function(){
+      state.blob = new Blob(state.chunks, {type: state.mediaRecorder.mimeType || mime || 'audio/webm'});
+      attachPlayer();
+      if (state.stream){ try{ state.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} }
+      state.stream = null;
+    };
+    state.mediaRecorder.start(1000);
+  }catch(e){
+    state.recording = false; state.stopping = false;
+    showMicProblem('Не удалось запустить запись: ' + e.name + '. ' + (e.message||''));
+    stopEverything(); return;
+  }
+
+  if (hasSR){
+    var r = new SR();
+    r.lang = 'ru-RU'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+    r.onresult = function(e){
+      state.interim = '';
+      for (var i=0;i<e.results.length;i++){
+        var res = e.results[i], key = state.sessionKey + ':' + i;
+        if (res.isFinal){
+          if (!state.seen[key]){ state.seen[key] = true; state.parts.push(res[0].transcript.trim()); }
+        } else state.interim += res[0].transcript;
+      }
+      renderLive();
+    };
+    r.onerror = function(e){
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+        state.srFailed = true;
+        $('#srNotice').textContent = 'Распознавание речи заблокировано. Аудио и анализ пауз продолжат работать, но текста не будет.';
+        $('#srNotice').classList.add('on');
+      }
+    };
+    r.onend = function(){
+      if (state.stopping){ if (!state.finalized){ clearTimeout(state.finalT); finalize(); } return; }
+      if (!state.recording) return;
+      state.sessionKey++;
+      setTimeout(function(){ try{ r.start(); }catch(err){} }, 250);
+    };
+    state.recog = r;
+    try{ r.start(); }catch(e){}
+  } else {
+    $('#srNotice').textContent = 'В этом режиме (установленное приложение) Web Speech API недоступен. Открой страницу в Safari — появится живая транскрипция. Запись и анализ пауз работают и так.';
+    $('#srNotice').classList.add('on');
+  }
+
+  state.startTs = performance.now();
+  $('#recBtn').classList.add('recording');
+  $('#recStatus').innerHTML = '<span class="dot on"></span> Идёт запись — говори';
+  $('#liveBlock').classList.add('on');
+  $('#transcript').innerHTML = '<span class="ph">Слушаю…</span>';
+  $('#lvWords').textContent = '0'; $('#lvFillers').textContent = '0'; $('#lvWpm').textContent = '—';
+  $('#timer').textContent = '00:00';
+
+  state.timerInt = setInterval(function(){ $('#timer').textContent = fmtClock(performance.now() - state.startTs); }, 250);
+  state.meterInt = setInterval(meterTick, 120);
+
+  requestWakeLock();
+}
+function stopRecording(){
+  if (!state.recording) return;
+  state.recording = false; state.stopping = true;
+  state.durMs = performance.now() - state.startTs;
+  clearInterval(state.timerInt); clearInterval(state.meterInt);
+  try{ if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') state.mediaRecorder.stop(); }catch(e){}
+  if (state.recog){ try{ state.recog.stop(); }catch(e){} }
+  clearTimeout(state.finalT);
+  state.finalT = setTimeout(function(){ if (!state.finalized) finalize(); }, 1500);
+  stopEverything();
+}
+function stopEverything(){
+  try{ if (state.srcNode) state.srcNode.disconnect(); }catch(e){}
+  state.srcNode = null;
+  releaseWakeLock();
+  $('#recBtn').classList.remove('recording');
+  $('#ringFg').style.strokeDashoffset = 704;
+  $('#recBtn').style.transform = '';
+}
+ $('#recBtn').addEventListener('click', function(){
+  if (state.recording){ stopRecording(); return; }
+  /* Аудиоконтекст создаём/будим СИНХРОННО прямо в обработчике касания —
+     так требует iOS: после await жест уже не считается «живым». */
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!state.audioCtx || state.audioCtx.state === 'closed') state.audioCtx = new AC();
+    if (state.audioCtx.state === 'suspended') state.audioCtx.resume().catch(function(){});
+  }catch(e){}
+  startRecording().catch(function(e){
+    state.recording = false; state.stopping = false;
+    $('#recBtn').classList.remove('recording');
+    showMicProblem('Не удалось начать запись: ' + (e && e.message ? e.message : e));
+  });
+});
+
+/* ═══════════ Детектор тишины + кольцо уровня ═══════════ */
+var METER_BUF = new Uint8Array(2048);
+function meterTick(){
+  var an = state.analyser; if (!an) return;
+  if (state.audioCtx && state.audioCtx.state !== 'running') return;
+  an.getByteTimeDomainData(METER_BUF);
+  var sum = 0;
+  for (var i=0;i<METER_BUF.length;i++){ var v=(METER_BUF[i]-128)/128; sum += v*v; }
+  var rms = Math.sqrt(sum / METER_BUF.length);
+  state.level += (Math.min(rms*5,1) - state.level) * .3;
+  $('#ringFg').style.strokeDashoffset = 704 * (1 - state.level);
+  $('#recBtn').style.transform = 'scale(' + (1 + state.level * .025) + ')';
+  var now = performance.now();
+  if (rms < 0.018){
+    if (state.silenceStart === null) state.silenceStart = now;
+  } else if (state.silenceStart !== null){
+    var d = now - state.silenceStart;
+    if (d >= 450) state.pauses.push({t: state.silenceStart - state.startTs, d: d});
+    state.silenceStart = null;
+  }
+  var txt = currentText(), w = countWords(txt);
+  $('#lvWords').textContent = w;
+  $('#lvFillers').textContent = countFillers(txt).total;
+  $('#lvWpm').textContent = w > 3 ? Math.round(w / ((now - state.startTs) / 60000)) : '—';
+}
+function currentText(){ return (state.parts.join(' ') + ' ' + state.interim).replace(/\s+/g,' ').trim(); }
+function renderLive(){
+  var box = $('#transcript');
+  var fin = esc(state.parts.join(' '));
+  box.innerHTML = (fin ? '<span>'+fin+'</span> ' : '') +
+    (state.interim ? '<span class="interim">'+esc(state.interim)+'</span>' : '') +
+    (!fin && !state.interim ? '<span class="ph">Слушаю…</span>' : '');
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ═══════════ Wake Lock (совместимо со старыми браузерами) ═══════════ */
+async function requestWakeLock(){
+  try{
+    if (navigator.wakeLock) state.wakeLock = await navigator.wakeLock.request('screen');
+  }catch(e){ state.wakeLock = null; }
+}
+function releaseWakeLock(){
+  try{ if (state.wakeLock) state.wakeLock.release(); }catch(e){}
+  state.wakeLock = null;
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible' && state.recording){
+    if (!state.wakeLock) requestWakeLock();
+    if (state.audioCtx && state.audioCtx.state === 'suspended'){ try{ state.audioCtx.resume(); }catch(e){} }
+  }
+});
+
+/* ═══════════ Финализация + анализ ═══════════ */
+function finalize(){
+  if (state.finalized) return;
+  state.finalized = true;
+  clearTimeout(state.finalT);
+  if (state.silenceStart !== null){
+    var d = performance.now() - state.silenceStart;
+    if (d >= 450) state.pauses.push({t: state.silenceStart - state.startTs, d: d});
+    state.silenceStart = null;
+  }
+  var text = (state.parts.join(' ') + (state.parts.length && state.interim ? ' ' : '') + state.interim).replace(/\s+/g,' ').trim();
+  var words = countWords(text);
+  var fill = countFillers(text);
+  var dur = Math.max(state.durMs, 1);
+  var pauses = state.pauses.slice().sort(function(a,b){ return a.t-b.t; });
+  var pauseMs = pauses.reduce(function(s,p){ return s+p.d; }, 0);
+  var result = {
+    id: Date.now(), ts: Date.now(),
+    durMs: dur, words: words,
+    wpm: words ? Math.round(words / (dur/60000)) : 0,
+    fillers: fill.total,
+    fill100: words ? +(fill.total / words * 100).toFixed(1) : 0,
+    fillerItems: fill.items,
+    pauseCount: pauses.length, pauseMs: pauseMs,
+    pauseRatio: +(pauseMs / dur * 100).toFixed(1),
+    pauses: pauses, text: text,
+    noText: !hasSR || state.srFailed
+  };
+  var prev = histData.length ? histData[0] : null;
+  result.tips = buildTips(result);
+  result.cmp = buildComparison(prev, result);
+  state.lastResult = result;
+  saveToHistory(result);
+  renderResult(result);
+  toast('Результат сохранён в историю');
+  switchView('view-result');
+}
+
+/* ═══════════ Проблемы → решения ═══════════ */
+function buildTips(r){
+  var tips = [];
+  if (r.noText){
+    tips.push({p:'Текст не распознан — темп и слова-паразиты посчитать нельзя.',
+      f:'Открой страницу в Safari (на Android — Chrome) и разреши распознавание речи при первом запросе. Запись и анализ пауз уже работают без этого.', good:false});
+    return tips;
+  }
+  if (r.words < 30){
+    tips.push({p:'Запись слишком короткая ('+r.words+' слов) — анализ не показателен.',
+      f:'Поговори минимум 60–90 секунд на любую тему: расскажи, чем занимался вчера, или перескажи сюжет фильма. Это полноценная тренировка, не «проба микрофона».', good:false});
+    return tips;
+  }
+  if (r.fill100 > 8){
+    tips.push({p:'Слов-паразитов очень много: <b>'+r.fill100+'</b> на 100 слов — почти каждое десятое слово «пустое».',
+      f:'Упражнение «Пауза вместо слова»: 3 минуты говори на случайную тему; потянуло сказать «эм» или «ну» — закрой рот и молчи секунду, потом продолжай мысль. Первые 3–4 дня паразитов станет даже больше — это нормально, включился самоконтроль. К концу недели счёт пойдёт резко вниз.', good:false});
+  } else if (r.fill100 > 4){
+    tips.push({p:'Слов-паразитов много: <b>'+r.fill100+'</b> на 100 слов.',
+      f:'«Правило топ-2»: обычно одно-два слова дают 80% всех паразитов — посмотри свои в списке выше и следи на записи только за ними. Плюс «метод монетки»: во время речи перекладывай монету из кармана в карман за каждый паразит — осознанный счёт режет их за несколько дней.', good:false});
+  } else if (r.fill100 > 0){
+    tips.push({p:'Паразитов немного ('+r.fill100+' на 100 слов) — но они проскальзывают.',
+      f:'Закрепи результат: переслушай эту запись целиком и посчитай паразиты на бумаге. Свой голос с «эм» раздражает сильнее любого тренера — после одного такого прослушивания мозг начинает резать их сам.', good:false});
+  } else {
+    tips.push({p:'Ни одного слова-паразита — редкий уровень чистоты речи.',
+      f:'Как усилить: добавь интонационные ударения — выделяй голосом одно ключевое слово в фразе. Чистая, но ровная речь звучит монотонно; акценты вернут ей вес.', good:true});
+  }
+  if (r.wpm && r.wpm < 95){
+    tips.push({p:'Темп низкий: <b>'+r.wpm+'</b> слов/мин — слушателю легко заскучать.',
+      f:'Упражнение «Абзац на время»: возьми текст на ~100 слов и читай вслух под секундомер. Цель — уложиться в 45–50 секунд. Повтори 3 раза, ускоряясь, но проговаривая все окончания. Перед записью сделай 2 минуты скороговорок — медленный темп часто идёт от «зажатой» артикуляции.', good:false});
+  } else if (r.wpm && r.wpm < 110){
+    tips.push({p:'Темп чуть медленнее рабочей зоны: <b>'+r.wpm+'</b> слов/мин.',
+      f:'Приём «Пружина»: начинай фразу в комфортном темпе и к её концу чуть ускоряйся, а следующую начинай раньше, чем хочется. Обычно достаточно сократить дыры между фразами — и темп сам войдёт в норму.', good:false});
+  } else if (r.wpm && r.wpm > 165){
+    tips.push({p:'Темп высокий: <b>'+r.wpm+'</b> слов/мин — слушатели не успевают за мыслью.',
+      f:'Приём «Точка на вдох»: расставь в конспекте жирные точки после ключевых фраз. Доехал до точки — рот закрыт, вдох носом, секунда молчания — и только потом следующая фраза. Запиши одну и ту же речь дважды: во второй раз темп останется правильным, уши запоминают рабочую скорость.', good:false});
+  } else if (r.wpm && r.wpm > 150){
+    tips.push({p:'Темп на верхней границе: <b>'+r.wpm+'</b> слов/мин.',
+      f:'Задай три «якоря» в речи (начало, середина, главный вывод) и в каждом замедляйся вдвое на одну фразу. Остальное можно говорить быстро — слушателю важны именно акценты, а не ровная скорость.', good:false});
+  } else {
+    tips.push({p:'Темп отличный: <b>'+r.wpm+'</b> слов/мин — комфортная зона восприятия.',
+      f:'Как усилить: меняй темп внутри речи — ключевую мысль произноси заметно медленнее окружающего текста. Контраст скорости удерживает внимание лучше ровного ритма.', good:true});
+  }
+  if (r.pauseCount === 0 && r.durMs > 45000){
+    tips.push({p:'Ни одной паузы за '+fmtDur(r.durMs)+' — речь идёт сплошным потоком.',
+      f:'Упражнение «Красный свет»: пересказывай текст, представляя, что после каждой ключевой мысли — светофор: полная остановка на 1–1,5 секунды. В паузе не заполняй тишину звуком — просто дыши. Для зала пауза — знак «тут важно».', good:false});
+  } else if (r.pauseRatio > 30){
+    tips.push({p:'Паузы заняли <b>'+r.pauseRatio+'%</b> времени — речь разваливается на обрывки.',
+      f:'Приём «Мосты»: выучи наизусть 3 связочные фразы («Теперь о главном…», «Разберём на примере…», «И вот что важно…») и держи наготове для переходов — зависание превращается в управляемый переход. Если пауза всё же случилась — молчи спокойно, не хмыкай и не извиняйся: ровная пауза выглядит как задумчивость.', good:false});
+  } else if (r.pauseRatio > 22){
+    tips.push({p:'Паузы занимают <b>'+r.pauseRatio+'%</b> времени — многовато долгих зависаний.',
+      f:'Правило «лучше часто и коротко»: там, где сейчас пауза на 3–4 секунды, сократи её до одной и добавь связку («разберём на примере…»). Ряд коротких пауз звучит ритмично, длинная — как потерянная мысль.', good:false});
+  } else if (r.pauseRatio >= 8){
+    tips.push({p:'Паузы в норме: <b>'+r.pauseCount+'</b> пауз, '+r.pauseRatio+'% времени.',
+      f:'Как усилить: ставь микропаузу (полсекунды) сразу после главного вывода — в тишине мысль «дозревает» у слушателя. Это бесплатный инструмент драматургии.', good:true});
+  } else {
+    tips.push({p:'Паузы почти отсутствуют ('+r.pauseRatio+'% времени) — воздуха между блоками не хватает.',
+      f:'Раздели речь на 4–5 смысловых блоков и после каждого — выдох, вдох, продолжение. Слушателю пауза даёт время подумать, тебе — воздух. Цель на следующей записи: 8–20% времени.', good:false});
+  }
+  return tips;
+}
+
+function buildComparison(prev, r){
+  if (!prev || !prev.words || !r.words) return [];
+  var out = [];
+  function add(label, from, to, lowerBetter){
+    if (from == null || to == null) return;
+    if (Math.abs(to - from) < 0.1){ out.push({label:label, from:from, to:to, dir:0}); return; }
+    var better = lowerBetter ? (to < from) : (to > from);
+    out.push({label:label, from:from, to:to, dir: better ? 1 : -1});
+  }
+  add('Паразиты', prev.fill100, r.fill100, true);
+  add('Паузы %', prev.pauseRatio, r.pauseRatio, true);
+  if (prev.wpm && r.wpm){
+    if (Math.abs(r.wpm - prev.wpm) < 3) out.push({label:'Темп', from:prev.wpm, to:r.wpm, dir:0});
+    else {
+      var d0 = Math.abs(prev.wpm - 137), d1 = Math.abs(r.wpm - 137);
+      out.push({label:'Темп', from:prev.wpm, to:r.wpm, dir: d1 <= d0 ? 1 : -1});
+    }
+  }
+  return out;
+}
+
+/* ═══════════ Отрисовка результата ═══════════ */
+function markMetric(el, val, loBad, hiBad){
+  el.classList.remove('bad','good');
+  if (val === null) return;
+  if (val < loBad || val > hiBad) el.classList.add('bad');
+}
+function renderResult(r){
+  $('#mDur').textContent = fmtClock(r.durMs);
+  $('#mWpm').textContent = r.wpm || '—';
+  $('#mFill').textContent = r.words ? r.fillers + ' · ' + r.fill100 : '—';
+  $('#mPause').textContent = r.pauseCount;
+  $('#mPauseMs').textContent = fmtDur(r.pauseMs);
+  markMetric($('#mWpmBox'), r.wpm || null, 110, 165);
+  if (r.words) $('#mFillBox').classList.toggle('bad', r.fill100 > 4);
+  $('#mPauseBox').classList.toggle('bad', r.pauseRatio > 22);
+
+  var dc = $('#deltas');
+  if (r.cmp && r.cmp.length){
+    dc.style.display = 'flex';
+    dc.innerHTML = r.cmp.map(function(c){
+      var arrow = c.to > c.from ? '↑' : (c.to < c.from ? '↓' : '→');
+      if (c.dir === 0) return '<span class="delta">'+c.label+': <b>'+c.from+' → '+c.to+'</b> · без изменений</span>';
+      return '<span class="delta '+(c.dir>0?'up':'down')+'">'+c.label+': <b>'+c.from+' → '+c.to+'</b> '+arrow+'</span>';
+    }).join('');
+  } else { dc.style.display = 'none'; dc.innerHTML = ''; }
+
+  var chips = $('#fillerChips');
+  var entries = Object.entries(r.fillerItems || {}).sort(function(a,b){ return b[1]-a[1]; });
+  chips.innerHTML = entries.length
+    ? entries.map(function(e){ return '<span class="chip">'+esc(e[0])+' <b>×'+e[1]+'</b></span>'; }).join('')
+    : (r.words ? '<span class="chip none">Чисто — ни одного слова-паразита</span>' : '<span class="chip none">Нет распознанного текста</span>');
+
+  var tl = $('#pTimeline'); tl.innerHTML = '';
+  r.pauses.forEach(function(p){
+    var s = document.createElement('i'); s.className = 'seg';
+    s.style.left = (p.t / r.durMs * 100) + '%';
+    s.style.width = Math.max(p.d / r.durMs * 100, .6) + '%';
+    tl.appendChild(s);
+  });
+  $('#pRatio').textContent = r.pauseRatio + '% времени';
+
+  $('#tipsList').innerHTML = r.tips.map(function(t,i){
+    return '<div class="tip'+(t.good?' good':'')+'">'+
+      '<div class="tip-head"><span class="n">'+String(i+1).padStart(2,'0')+'</span><p class="prob">'+t.p+'</p></div>'+
+      '<div class="tip-fix"><span class="fl">'+(t.good?'Как усилить':'Решение')+'</span><p>'+t.f+'</p></div>'+
+    '</div>';
+  }).join('') || '<div class="tip"><p>Данных пока мало — сделай запись подлиннее.</p></div>';
+
+  attachPlayer();
+  $('#pbarFill').style.width = '0%'; $('#pTime').textContent = '0:00';
+  resetPlayBtn();
+}
+function attachPlayer(){
+  if (!state.blob || !state.lastResult) return;
+  if (state.blobUrl) URL.revokeObjectURL(state.blobUrl);
+  state.blobUrl = URL.createObjectURL(state.blob);
+  $('#player').src = state.blobUrl;
+}
+var player = $('#player');
+function resetPlayBtn(){ $('#playIc').innerHTML = '<path d="M8 5.5v13l11-6.5z"/>'; }
+ $('#playBtn').addEventListener('click', function(){
+  if (!player.src) return toast('Аудио ещё готовится');
+  if (player.paused) player.play().catch(function(){ toast('Не удалось воспроизвести'); }); else player.pause();
+});
+player.addEventListener('play', function(){ $('#playIc').innerHTML = '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>'; });
+player.addEventListener('pause', resetPlayBtn);
+player.addEventListener('ended', resetPlayBtn);
+player.addEventListener('timeupdate', function(){
+  if (!player.duration) return;
+  $('#pbarFill').style.width = (player.currentTime / player.duration * 100) + '%';
+  $('#pTime').textContent = Math.floor(player.currentTime/60) + ':' + String(Math.floor(player.currentTime%60)).padStart(2,'0');
+});
+
+ $('#btnDiscard').addEventListener('click', function(){
+  var btn = this;
+  if (!btn.classList.contains('armed')){
+    btn.classList.add('armed'); btn.textContent = 'Точно удалить?';
+    setTimeout(function(){ btn.classList.remove('armed'); btn.textContent = 'Удалить'; }, 2500);
+    return;
+  }
+  if (state.lastResult){
+    histData = histData.filter(function(x){ return x.id !== state.lastResult.id; });
+    localStorage.setItem('sm_history', JSON.stringify(histData));
+  }
+  btn.classList.remove('armed'); btn.textContent = 'Удалить';
+  resetToRecord(); toast('Запись удалена');
+});
+ $('#btnAgain').addEventListener('click', resetToRecord);
+function resetToRecord(){
+  state.lastResult = null;
+  $('#liveBlock').classList.remove('on');
+  $('#recStatus').textContent = 'Готов записать твою речь';
+  $('#timer').textContent = '00:00';
+  $('#srNotice').classList.remove('on');
+  switchView('view-record');
+}
+
+/* ═══════════ История (localStorage — у каждого устройства своя) ═══════════ */
+var histData = [];
+try{ histData = JSON.parse(localStorage.getItem('sm_history') || '[]') || []; }catch(e){ histData = []; }
+histData = histData.filter(function(x){ return x && x.ts; });
+function saveToHistory(r){
+  histData.unshift(r);
+  if (histData.length > 60) histData = histData.slice(0,60);
+  localStorage.setItem('sm_history', JSON.stringify(histData));
+}
+function renderHistory(){
+  var list = $('#histList');
+  if (!histData.length){
+    $('#histSummary').textContent = '';
+    list.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Пока ни одной записи.<br>Сделай первое выступление — и здесь появится твой прогресс.</div>';
+    return;
+  }
+  var totalMin = Math.round(histData.reduce(function(s,x){ return s+x.durMs; },0)/60000);
+  $('#histSummary').textContent = histData.length + ' записей · ' + totalMin + ' мин практики';
+  list.innerHTML = histData.map(function(x){
+    var pauseSegs = (x.pauses || []).map(function(p){
+      return '<i class="seg" style="left:'+(p.t/x.durMs*100)+'%;width:'+Math.max(p.d/x.durMs*100,.7)+'%"></i>';
+    }).join('');
+    return '<div class="h-item" data-id="'+x.id+'">'+
+      '<div class="h-top">'+
+        '<div class="h-date">'+fmtDate(x.ts)+', '+new Date(x.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+'</div>'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<span class="h-dur">'+fmtClock(x.durMs)+'</span>'+
+          '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8C96" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>'+
+        '</div>'+
+      '</div>'+
+      '<div class="h-rows">'+
+        '<div class="h-cell"><b>'+(x.wpm||'—')+'</b><span>слов/мин</span></div>'+
+        '<div class="h-cell"><b class="'+(x.fill100>4?'warn':'')+'">'+x.fillers+'</b><span>паразитов</span></div>'+
+        '<div class="h-cell"><b>'+x.pauseCount+'</b><span>пауз</span></div>'+
+        '<div class="h-cell"><b>'+fmtDur(x.pauseMs)+'</b><span>в паузах</span></div>'+
+      '</div>'+
+      '<div class="h-mini">'+pauseSegs+'</div>'+
+      '<div class="h-more">'+
+        '<div class="h-text">'+(x.text ? esc(x.text) : 'Текст не распознан.')+'</div>'+
+        '<button class="h-del" data-del="'+x.id+'">Удалить запись</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+ $('#histList').addEventListener('click', function(e){
+  var del = e.target.closest('[data-del]');
+  if (del){
+    if (!del.classList.contains('armed')){
+      del.classList.add('armed'); del.textContent = 'Нажми ещё раз для удаления';
+      setTimeout(function(){ del.classList.remove('armed'); del.textContent = 'Удалить запись'; }, 2500);
+      return;
+    }
+    var id = +del.dataset.del;
+    histData = histData.filter(function(x){ return x.id !== id; });
+    localStorage.setItem('sm_history', JSON.stringify(histData));
+    renderHistory(); toast('Запись удалена'); drawChart();
+    return;
+  }
+  var item = e.target.closest('.h-item');
+  if (item) item.classList.toggle('open');
+});
+
+/* ═══════════ Прогресс: график на canvas ═══════════ */
+var chartMetric = 'wpm';
+document.querySelectorAll('.seg-control button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.seg-control button').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); chartMetric = b.dataset.metric; drawChart();
+  });
+});
+function drawChart(){
+  var cv = $('#chart'), box = $('#chartBox');
+  var w = box.clientWidth - 16, h = 230, dpr = window.devicePixelRatio || 1;
+  if (w <= 0) return;
+  cv.width = w*dpr; cv.height = h*dpr; cv.style.width = w+'px'; cv.style.height = h+'px';
+  var ctx = cv.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+  var data = histData.slice().reverse();
+  if (!data.length){
+    ctx.fillStyle = '#8E8C96'; ctx.font = '13px Golos Text, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Нет данных — сделай первую запись', w/2, h/2);
+    return;
+  }
+  var vals = data.map(function(x){ return chartMetric==='wpm' ? (x.wpm||null) : x.fill100; })
+                 .map(function(v){ return (v===null || isNaN(v)) ? null : v; });
+  var valid = vals.filter(function(v){ return v !== null; });
+  if (!valid.length){
+    ctx.fillStyle = '#8E8C96'; ctx.font = '13px Golos Text, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(chartMetric==='wpm' ? 'Нет записей с распознанным текстом' : 'Нет данных', w/2, h/2);
+    return;
+  }
+  var min = Math.min.apply(null, valid), max = Math.max.apply(null, valid);
+  if (max - min < 1){ min -= 1; max += 1; }
+  var pad = (max-min)*.15; min -= pad; max += pad;
+  var L = 44, R = 12, T = 14, B = 28, iw = w-L-R, ih = h-T-B;
+  function X(i){ return data.length===1 ? L+iw/2 : L + i*(iw/(data.length-1)); }
+  function Y(v){ return T + ih - (v-min)/(max-min)*ih; }
+  ctx.strokeStyle = '#26262E'; ctx.fillStyle = '#8E8C96';
+  ctx.font = '10px Golos Text, sans-serif'; ctx.textAlign = 'right'; ctx.lineWidth = 1;
+  for (var g=0; g<=3; g++){
+    var v = min + (max-min)*g/3, y = Y(v);
+    ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(w-R,y); ctx.stroke();
+    ctx.fillText(Math.round(v), L-7, y+3);
+  }
+  var col = chartMetric==='wpm' ? '#FFB13D' : '#FF6B57';
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+  var started = false;
+  vals.forEach(function(v,i){
+    if (v===null) return;
+    if (started) ctx.lineTo(X(i),Y(v)); else { ctx.moveTo(X(i),Y(v)); started = true; }
+  });
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  vals.forEach(function(v,i){
+    if (v===null) return;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(i),Y(v),4,0,7); ctx.fill();
+    ctx.fillStyle = '#0B0B0D'; ctx.beginPath(); ctx.arc(X(i),Y(v),1.8,0,7); ctx.fill();
+    if (vals.length<=12){ ctx.fillStyle='#C9C7CF'; ctx.font='10.5px Golos Text, sans-serif'; ctx.fillText(Math.round(v), X(i), Y(v)-9); }
+  });
+  var nL = Math.min(data.length, 5);
+  ctx.fillStyle = '#8E8C96'; ctx.font = '10px Golos Text, sans-serif';
+  for (var k=0; k<nL; k++){
+    var idx = nL > 1 ? Math.round(k*(data.length-1)/(nL-1)) : 0;
+    ctx.fillText(fmtDate(data[idx].ts), X(idx), h-8);
+  }
+}
+function renderWeeks(){
+  var box = $('#weeksList');
+  if (!histData.length){ box.innerHTML = '<div class="tip"><p>Записей пока нет — прогресс появится после первой практики.</p></div>'; return; }
+  function weekStart(ts){
+    var d = new Date(ts); var day = (d.getDay()+6)%7;
+    d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d.getTime();
+  }
+  var now = Date.now(), DAY = 864e5, rows = [];
+  for (var i=0;i<4;i++){
+    var from = weekStart(now) - i*7*DAY, to = from + 7*DAY;
+    var recs = histData.filter(function(x){ return x.ts>=from && x.ts<to; });
+    var withWpm = recs.filter(function(x){ return x.wpm; });
+    rows.push({
+      from: from, to: to, n: recs.length,
+      min: Math.round(recs.reduce(function(s,x){ return s+x.durMs; },0)/60000),
+      wpm: withWpm.length ? Math.round(withWpm.reduce(function(s,x){ return s+x.wpm; },0)/withWpm.length) : 0,
+      fill: recs.length ? +(recs.reduce(function(s,x){ return s+x.fill100; },0)/recs.length).toFixed(1) : 0
+    });
+  }
+  var curWeek = weekStart(now);
+  box.innerHTML = rows.map(function(r){
+    var name = r.from===curWeek ? 'Эта неделя' :
+      new Date(r.from).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})+' – '+
+      new Date(r.to-1).toLocaleDateString('ru-RU',{day:'numeric',month:'short'});
+    return '<div class="week-row">'+
+      '<div class="week-name">'+name+'<span>'+(r.n ? r.n+' записей · '+r.min+' мин' : 'нет записей')+'</span></div>'+
+      '<div class="week-m"><b>'+(r.wpm||'—')+'</b><span>слов/мин</span></div>'+
+      '<div class="week-m"><b>'+(r.n ? r.fill : '—')+'</b><span>паразитов</span></div>'+
+    '</div>';
+  }).join('');
+}
+
+/* ═══════════ Навигация ═══════════ */
+function switchView(id){
+  var tabId = (id === 'view-result') ? 'view-record' : id;
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.view===tabId); });
+  document.getElementById(id).scrollTop = 0;
+}
+document.querySelectorAll('nav button').forEach(function(b){
+  b.addEventListener('click', function(){
+    var id = b.dataset.view;
+    if (id === 'view-record' && state.lastResult){ switchView('view-result'); return; }
+    if (id === 'view-history') renderHistory();
+    if (id === 'view-progress'){ renderWeeks(); requestAnimationFrame(drawChart); }
+    switchView(id);
+  });
+});
+window.addEventListener('resize', function(){ if ($('#view-progress').classList.contains('active')) drawChart(); });
+</script>
+</body>
+</html>
